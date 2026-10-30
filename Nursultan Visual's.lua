@@ -5,6 +5,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
 local LocalPlayer = Players.LocalPlayer
 
 -- ==========================================
@@ -32,6 +33,7 @@ local Rayfield = nil
 local Window = nil
 local SettingsTab = nil
 local FunTab = nil
+local SkyTab = nil
 local StatsTab = nil
 
 local success, err = pcall(function()
@@ -73,6 +75,11 @@ local trailFolder = nil
 local trailPool = {}
 local trailIndex = 1
 local lastTrailPos = nil
+
+-- Настройки Неба
+local currentSky = nil
+local lastCopiedId = ""
+local SITE_URL = "https://sites.google.com/view/skybox-roblox-srcipt/%D0%B3%D0%BB%D0%B0%D0%B2%D0%BD%D0%B0%D1%8F-%D1%81%D1%82%D1%80%D0%B0%D0%BD%D0%B8%D1%86%D0%B0"
 
 local connections = {}
 local function addConnection(conn)
@@ -209,7 +216,55 @@ local function spawnTrailPart(pos, color)
 end
 
 -- ==========================================
--- 7. ГЛАВНЫЙ ЦИКЛ
+-- 7. НЕБО (АВТО + РУЧНОЕ)
+-- ==========================================
+local function setSky(skyId)
+    if currentSky then
+        currentSky:Destroy()
+    end
+
+    local finalId = skyId
+    if not string.find(skyId, "rbxassetid://") then
+        finalId = "rbxassetid://" .. skyId
+    end
+
+    local sky = Instance.new("Sky")
+    sky.Name = "NursultanSky"
+    sky.SkyboxBk = finalId
+    sky.SkyboxDn = finalId
+    sky.SkyboxFt = finalId
+    sky.SkyboxLf = finalId
+    sky.SkyboxRt = finalId
+    sky.SkyboxUp = finalId
+    sky.Parent = Lighting
+    
+    currentSky = sky
+end
+
+-- АВТО-ПРИЕМНИК ИЗ БУФЕРА ОБМЕНА
+task.spawn(function()
+    while task.wait(1) do
+        if not isActive then break end
+        if fromclipboard then
+            local clip = fromclipboard()
+            if clip and string.sub(clip, 1, 7) == "skybox_" then
+                local skyId = string.sub(clip, 8)
+                if skyId ~= lastCopiedId then
+                    lastCopiedId = skyId
+                    setSky(skyId)
+                    
+                    if setclipboard then setclipboard("") end 
+                    if Rayfield then
+                        Rayfield:Notify({ Title = "Небо", Content = "Скайбокс с сайта применён!", Duration = 3, Image = 4483362458 })
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- ==========================================
+-- 8. ГЛАВНЫЙ ЦИКЛ
 -- ==========================================
 addConnection(RunService.RenderStepped:Connect(function(dt)
     if not isActive then return end
@@ -258,7 +313,7 @@ addConnection(RunService.RenderStepped:Connect(function(dt)
 end))
 
 -- ==========================================
--- 8. МЕНЮ НАСТРОЕК
+-- 9. МЕНЮ НАСТРОЕК
 -- ==========================================
 if Window then
     SettingsTab = Window:CreateTab("Настройки", 4483362458)
@@ -284,13 +339,55 @@ if Window then
     
     FunTab:CreateSlider({ Name = "Длительность следа", Range = {0.1, 10}, Increment = 0.1, Suffix = "сек", CurrentValue = 0.5, Flag = "TrailLife", Callback = function(value) trailLifetime = value end })
 
-    -- НОВАЯ ВКЛАДКА: СТАТИСТИКА
+    -- ВКЛАДКА: НЕБО
+    SkyTab = Window:CreateTab("Небо", 4483362458)
+    
+    SkyTab:CreateSection("Авто-Скайбокс")
+    SkyTab:CreateButton({
+        Name = "🌐 Открыть сайт (скопировать ссылку)",
+        Callback = function()
+            if setclipboard then
+                setclipboard(SITE_URL)
+                Rayfield:Notify({ Title = "Сайт", Content = "Ссылка скопирована! Вставь её в браузер.", Duration = 5, Image = 4483362458 })
+            else
+                Rayfield:Notify({ Title = "Сайт", Content = SITE_URL, Duration = 10, Image = 4483362458 })
+            end
+        end
+    })
+    
+    SkyTab:CreateLabel("1. Открой сайт по ссылке выше.")
+    SkyTab:CreateLabel("2. Выбери небо, и оно применится само!")
+
+    SkyTab:CreateInput({
+        Name = "Или введи ID вручную",
+        PlaceholderText = "Например: 15124016625",
+        RemoveTextAfterFocusLost = false,
+        Callback = function(text)
+            if text and text ~= "" then
+                setSky(text)
+                Rayfield:Notify({ Title = "Небо", Content = "ID применен вручную.", Duration = 3, Image = 4483362458 })
+            end
+        end
+    })
+
+    SkyTab:CreateButton({
+        Name = "Сбросить небо",
+        Callback = function()
+            if currentSky then
+                currentSky:Destroy()
+                currentSky = nil
+            end
+            Rayfield:Notify({ Title = "Небо", Content = "Небо сброшено.", Duration = 3, Image = 4483362458 })
+        end
+    })
+
+    -- ВКЛАДКА: СТАТИСТИКА
     StatsTab = Window:CreateTab("Статистика", 4483362458)
     
     StatsTab:CreateSection("Информация о скрипте")
     StatsTab:CreateLabel("Скрипт: Nursultan Visual's")
     StatsTab:CreateLabel("Автор: Nursultan")
-    StatsTab:CreateLabel("Версия: 1.0")
+    StatsTab:CreateLabel("Версия: 1.5")
     StatsTab:CreateDivider()
     StatsTab:CreateLabel("Запусков скрипта: " .. executionCount)
     
@@ -326,6 +423,11 @@ if Window then
                 end
             end
             
+            if currentSky then
+                currentSky:Destroy()
+                currentSky = nil
+            end
+
             if hatParts and hatParts.hat and hatParts.hat.Parent then hatParts.hat:Destroy() end
             hatParts = nil
             
@@ -351,7 +453,7 @@ if Window then
 end
 
 -- ==========================================
--- 9. ШЕСТЕРЕНКА И КНОПКА
+-- 10. ШЕСТЕРЕНКА И КНОПКА
 -- ==========================================
 local playerGui = LocalPlayer:WaitForChild("PlayerGui")
 local oldGear = playerGui:FindFirstChild("GearGui")
@@ -462,7 +564,7 @@ addConnection(toggleBtn.MouseButton1Click:Connect(toggleMenu))
 
 Rayfield:Notify({
    Title = "Nursultan Visual's",
-   Content = "Скрипт загружен! Запусков: " .. executionCount,
+   Content = "Скрипт загружен! Вкладка 'Небо' добавлена. Запусков: " .. executionCount,
    Duration = 5,
    Image = 4483362458
 })
