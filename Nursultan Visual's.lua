@@ -8,12 +8,31 @@ local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 
 -- ==========================================
--- 1. ЗАГРУЗКА Nursultan Visual's
+-- 1. СЧЕТЧИК ЗАПУСКОВ
+-- ==========================================
+local executionCount = 1
+local statFile = "NursultanVisuals_Stats.txt"
+
+if writefile and readfile and isfile then
+    if isfile(statFile) then
+        local success, data = pcall(readfile, statFile)
+        if success and tonumber(data) then
+            executionCount = tonumber(data) + 1
+        end
+    end
+    pcall(writefile, statFile, tostring(executionCount))
+else
+    executionCount = 1
+end
+
+-- ==========================================
+-- 2. ЗАГРУЗКА RAYFIELD
 -- ==========================================
 local Rayfield = nil
 local Window = nil
 local SettingsTab = nil
 local FunTab = nil
+local StatsTab = nil
 
 local success, err = pcall(function()
     Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -31,7 +50,7 @@ if not success then
 end
 
 -- ==========================================
--- 2. НАСТРОЙКИ
+-- 3. НАСТРОЙКИ
 -- ==========================================
 local color1 = Color3.fromHex("#80FFD4") 
 local color2 = Color3.fromHex("#40D4A0")
@@ -61,7 +80,7 @@ local function addConnection(conn)
 end
 
 -- ==========================================
--- 3. ШЛЯПА
+-- 4. ШЛЯПА
 -- ==========================================
 local function setTransparencySmooth(part, targetTransparency)
     if not part or not part.Parent then return end
@@ -130,7 +149,7 @@ end))
 if LocalPlayer.Character then safeUpdateHat() end
 
 -- ==========================================
--- 4. SPIN
+-- 5. SPIN
 -- ==========================================
 local function updateSpinState()
     local char = LocalPlayer.Character
@@ -142,7 +161,7 @@ local function updateSpinState()
 end
 
 -- ==========================================
--- 5. СЛЕД
+-- 6. СЛЕД
 -- ==========================================
 local function initTrailPool()
     if trailFolder and trailFolder.Parent then return end
@@ -190,7 +209,7 @@ local function spawnTrailPart(pos, color)
 end
 
 -- ==========================================
--- 6. ГЛАВНЫЙ ЦИКЛ
+-- 7. ГЛАВНЫЙ ЦИКЛ
 -- ==========================================
 addConnection(RunService.RenderStepped:Connect(function(dt)
     if not isActive then return end
@@ -239,7 +258,7 @@ addConnection(RunService.RenderStepped:Connect(function(dt)
 end))
 
 -- ==========================================
--- 7. МЕНЮ НАСТРОЕК
+-- 8. МЕНЮ НАСТРОЕК
 -- ==========================================
 if Window then
     SettingsTab = Window:CreateTab("Настройки", 4483362458)
@@ -263,8 +282,29 @@ if Window then
     FunTab:CreateDropdown({ Name = "Режим цвета следа", Options = {"Радужный", "Свой цвет"}, CurrentOption = {"Радужный"}, Flag = "TrailMode", Callback = function(option) if option == "Радужный" then trailColorMode = "Rainbow" else trailColorMode = "Custom" end end })
     FunTab:CreateColorPicker({ Name = "Цвет следа", Color = customTrailColor, Flag = "TrailColor", Callback = function(value) customTrailColor = value end })
     
-    -- ИЗМЕНЕНИЕ: Длительность следа до 10
     FunTab:CreateSlider({ Name = "Длительность следа", Range = {0.1, 10}, Increment = 0.1, Suffix = "сек", CurrentValue = 0.5, Flag = "TrailLife", Callback = function(value) trailLifetime = value end })
+
+    -- НОВАЯ ВКЛАДКА: СТАТИСТИКА
+    StatsTab = Window:CreateTab("Статистика", 4483362458)
+    
+    StatsTab:CreateSection("Информация о скрипте")
+    StatsTab:CreateLabel("Скрипт: Nursultan Visual's")
+    StatsTab:CreateLabel("Автор: Nursultan")
+    StatsTab:CreateLabel("Версия: 1.0")
+    StatsTab:CreateDivider()
+    StatsTab:CreateLabel("Запусков скрипта: " .. executionCount)
+    
+    StatsTab:CreateButton({
+        Name = "🔄 Обновить статистику",
+        Callback = function()
+            Rayfield:Notify({
+               Title = "Статистика",
+               Content = "Текущее количество запусков: " .. executionCount,
+               Duration = 3,
+               Image = 4483362458
+            })
+        end
+    })
 
     SettingsTab:CreateButton({
         Name = "⛔ ПОЛНОСТЬЮ ОСТАНОВИТЬ СКРИПТ",
@@ -311,7 +351,7 @@ if Window then
 end
 
 -- ==========================================
--- 8. ШЕСТЕРЕНКА И КНОПКА
+-- 9. ШЕСТЕРЕНКА И КНОПКА
 -- ==========================================
 local playerGui = LocalPlayer:WaitForChild("PlayerGui")
 local oldGear = playerGui:FindFirstChild("GearGui")
@@ -422,9 +462,9 @@ addConnection(toggleBtn.MouseButton1Click:Connect(toggleMenu))
 
 Rayfield:Notify({
    Title = "Nursultan Visual's",
-   Content = "Скрипт успешно загружен!",
+   Content = "Скрипт загружен! Запусков: " .. executionCount,
    Duration = 5,
    Image = 4483362458
 })
 
-print("[NURSULTAN VISUAL'S]: Загружено!")
+print("[NURSULTAN VISUAL'S]: Загружено! Запусков: " .. executionCount)
