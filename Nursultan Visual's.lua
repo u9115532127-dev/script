@@ -1,4 +1,4 @@
--- [[ Nursultan Visual's ]] --
+-- [[ Nursultan Visual's (Trail Update) ]] --
 -- LocalScript / Executor
 
 local Players = game:GetService("Players")
@@ -66,15 +66,15 @@ local isActive = true
 local isSpinning = false
 local spinSpeed = 15
 
--- Настройки Следа
+-- Настройки Следа (Trail)
 local isTrailEnabled = false
 local trailColorMode = "Rainbow"
 local customTrailColor = Color3.fromRGB(255, 0, 0)
-local trailLifetime = 0.5
-local trailFolder = nil
-local trailPool = {}
-local trailIndex = 1
-local lastTrailPos = nil
+local trailLifetime = 1.5 -- Длина следа
+local trailWidth = 1       -- Ширина следа
+local trailObject = nil
+local trailAtt0 = nil
+local trailAtt1 = nil
 
 -- Настройки Неба
 local currentSky = nil
@@ -168,52 +168,54 @@ local function updateSpinState()
 end
 
 -- ==========================================
--- 6. СЛЕД
+-- 6. СЛЕД (TRAIL, А НЕ КУБИКИ)
 -- ==========================================
-local function initTrailPool()
-    if trailFolder and trailFolder.Parent then return end
-    
-    trailFolder = workspace:FindFirstChild("LocalTrailFolder")
-    if not trailFolder then
-        trailFolder = Instance.new("Folder")
-        trailFolder.Name = "LocalTrailFolder"
-        trailFolder.Parent = workspace
-    end
+local function initTrail()
+    if not isTrailEnabled then return end
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
 
-    for _, child in ipairs(trailFolder:GetChildren()) do
-        child:Destroy()
-    end
-    trailPool = {}
+    -- Удаляем старый
+    if trailObject then trailObject:Destroy() end
+    if trailAtt0 then trailAtt0:Destroy() end
+    if trailAtt1 then trailAtt1:Destroy() end
 
-    for i = 1, 50 do
-        local part = Instance.new("Part")
-        part.Name = "TrailPart"
-        part.Size = Vector3.new(0.8, 0.8, 0.8)
-        part.Material = Enum.Material.Neon
-        part.CanCollide = false
-        part.CanTouch = false
-        part.CanQuery = false
-        part.Anchored = true
-        part.Transparency = 1
-        part.Parent = trailFolder
-        table.insert(trailPool, part)
-    end
+    -- Создаем 2 Attachment по бокам
+    trailAtt0 = Instance.new("Attachment")
+    trailAtt0.Position = Vector3.new(-trailWidth, 0, 0)
+    trailAtt0.Parent = hrp
+
+    trailAtt1 = Instance.new("Attachment")
+    trailAtt1.Position = Vector3.new(trailWidth, 0, 0)
+    trailAtt1.Parent = hrp
+
+    -- Создаем Trail
+    local trail = Instance.new("Trail")
+    trail.Name = "NursultanTrail"
+    trail.Attachment0 = trailAtt0
+    trail.Attachment1 = trailAtt1
+    trail.Lifetime = trailLifetime
+    trail.FaceCamera = true
+    trail.LightEmission = 1
+    trail.TextureMode = Enum.TextureMode.Stretch
+    trail.Parent = hrp
+
+    trailObject = trail
 end
 
-local function spawnTrailPart(pos, color)
-    if #trailPool == 0 then return end
-    local part = trailPool[trailIndex]
-    trailIndex = (trailIndex % #trailPool) + 1
-
-    part.CFrame = CFrame.new(pos)
-    part.Color = color
-    part.Transparency = 0.2
-    part.Size = Vector3.new(0.8, 0.8, 0.8)
-
-    local tweenInfo = TweenInfo.new(trailLifetime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    local tween = TweenService:Create(part, tweenInfo, { Transparency = 1, Size = Vector3.new(0, 0, 0) })
-    tween:Play()
+local function removeTrail()
+    if trailObject then trailObject:Destroy() trailObject = nil end
+    if trailAtt0 then trailAtt0:Destroy() trailAtt0 = nil end
+    if trailAtt1 then trailAtt1:Destroy() trailAtt1 = nil end
 end
+
+-- Пересоздаем след при спавне
+addConnection(LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(1)
+    if isTrailEnabled then initTrail() end
+end))
 
 -- ==========================================
 -- 7. НЕБО (АВТО + РУЧНОЕ)
@@ -241,7 +243,7 @@ local function setSky(skyId)
     currentSky = sky
 end
 
--- АВТО-ПРИЕМНИК ИЗ БУФЕРА ОБМЕНА
+-- АВТО-ПРИЕМНИК ИЗ БУФЕРА
 task.spawn(function()
     while task.wait(1) do
         if not isActive then break end
@@ -288,27 +290,14 @@ addConnection(RunService.RenderStepped:Connect(function(dt)
         end
     end
 
-    -- 3. След
-    if isTrailEnabled then
-        if not trailFolder or not trailFolder.Parent then initTrailPool() end
-        
-        local char = LocalPlayer.Character
-        if char then
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                local currentPos = hrp.Position
-                if not lastTrailPos or (currentPos - lastTrailPos).Magnitude > 1.5 then
-                    lastTrailPos = currentPos
-                    
-                    local finalColor = customTrailColor
-                    if trailColorMode == "Rainbow" then
-                        local hue = (time * 0.5) % 1
-                        finalColor = Color3.fromHSV(hue, 1, 1)
-                    end
-                    spawnTrailPart(currentPos - Vector3.new(0, 2.5, 0), finalColor)
-                end
-            end
+    -- 3. Красим след (Trail)
+    if isTrailEnabled and trailObject then
+        local finalColor = customTrailColor
+        if trailColorMode == "Rainbow" then
+            local hue = (time * 0.5) % 1
+            finalColor = Color3.fromHSV(hue, 1, 1)
         end
+        trailObject.Color = ColorSequence.new(finalColor, finalColor)
     end
 end))
 
@@ -330,14 +319,25 @@ if Window then
     FunTab:CreateSlider({ Name = "Скорость вращения", Range = {1, 100}, Increment = 1, Suffix = "x", CurrentValue = 15, Flag = "SpinSpeed", Callback = function(value) spinSpeed = value end })
     FunTab:CreateDivider()
 
-    FunTab:CreateToggle({ Name = "Радужный след", CurrentValue = false, Flag = "TrailToggle", Callback = function(state) 
+    -- НОВЫЕ НАСТРОЙКИ СЛЕДА (TRAIL)
+    FunTab:CreateToggle({ Name = "Красивый след (Trail)", CurrentValue = false, Flag = "TrailToggle", Callback = function(state) 
         isTrailEnabled = state 
-        if state then initTrailPool() end
+        if state then initTrail() else removeTrail() end
     end })
+    
     FunTab:CreateDropdown({ Name = "Режим цвета следа", Options = {"Радужный", "Свой цвет"}, CurrentOption = {"Радужный"}, Flag = "TrailMode", Callback = function(option) if option == "Радужный" then trailColorMode = "Rainbow" else trailColorMode = "Custom" end end })
     FunTab:CreateColorPicker({ Name = "Цвет следа", Color = customTrailColor, Flag = "TrailColor", Callback = function(value) customTrailColor = value end })
     
-    FunTab:CreateSlider({ Name = "Длительность следа", Range = {0.1, 10}, Increment = 0.1, Suffix = "сек", CurrentValue = 0.5, Flag = "TrailLife", Callback = function(value) trailLifetime = value end })
+    FunTab:CreateSlider({ Name = "Длительность следа", Range = {0.1, 5}, Increment = 0.1, Suffix = "сек", CurrentValue = 1.5, Flag = "TrailLife", Callback = function(value) 
+        trailLifetime = value
+        if trailObject then trailObject.Lifetime = value end
+    end })
+
+    FunTab:CreateSlider({ Name = "Ширина следа", Range = {0.1, 3}, Increment = 0.1, Suffix = "", CurrentValue = 1, Flag = "TrailWidth", Callback = function(value) 
+        trailWidth = value
+        if trailAtt0 then trailAtt0.Position = Vector3.new(-value, 0, 0) end
+        if trailAtt1 then trailAtt1.Position = Vector3.new(value, 0, 0) end
+    end })
 
     -- ВКЛАДКА: НЕБО
     SkyTab = Window:CreateTab("Небо", 4483362458)
@@ -387,7 +387,7 @@ if Window then
     StatsTab:CreateSection("Информация о скрипте")
     StatsTab:CreateLabel("Скрипт: Nursultan Visual's")
     StatsTab:CreateLabel("Автор: Nursultan")
-    StatsTab:CreateLabel("Версия: 1.5")
+    StatsTab:CreateLabel("Версия: 1.6 (Trail Update)")
     StatsTab:CreateDivider()
     StatsTab:CreateLabel("Запусков скрипта: " .. executionCount)
     
@@ -431,8 +431,7 @@ if Window then
             if hatParts and hatParts.hat and hatParts.hat.Parent then hatParts.hat:Destroy() end
             hatParts = nil
             
-            if trailFolder then trailFolder:Destroy() end
-            trailPool = {}
+            removeTrail()
             
             local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
             if playerGui then
@@ -564,7 +563,7 @@ addConnection(toggleBtn.MouseButton1Click:Connect(toggleMenu))
 
 Rayfield:Notify({
    Title = "Nursultan Visual's",
-   Content = "Скрипт загружен! Вкладка 'Небо' добавлена. Запусков: " .. executionCount,
+   Content = "Скрипт загружен! След теперь в виде ленты.",
    Duration = 5,
    Image = 4483362458
 })
