@@ -1,10 +1,11 @@
--- [[ Kotakbas Visual's (BEAUTIFUL UI V2) ]] --
+-- [[ Kotakbas Visual's (MONSTER UI + TAB + FULLBRIGHT) ]] --
 -- LocalScript / Executor
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local StarterGui = game:GetService("StarterGui")
 local Lighting = game:GetService("Lighting")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -14,23 +15,33 @@ local connections = {}
 local function addConnection(conn) table.insert(connections, conn) end
 
 -- ==========================================
--- 1. НАСТРОЙКИ
+-- 1. СТАТИСТИКА И НАСТРОЙКИ
 -- ==========================================
+local statFile = "Kotakbas_Monster_Stats.txt"
+local executionCount = 1
+if writefile and readfile and isfile then
+    if isfile(statFile) then
+        local ok, data = pcall(readfile, statFile)
+        if ok and tonumber(data) then executionCount = tonumber(data) + 1 end
+    end
+    pcall(writefile, statFile, tostring(executionCount))
+end
+
 local settings = {
-    Hat = false, Trail = false, Spin = false,
+    Hat = false, Trail = false, Spin = false, Fullbright = false,
     HatColor1 = Color3.fromRGB(255, 50, 50),
     HatColor2 = Color3.fromRGB(150, 0, 0),
-    AccentColor = Color3.fromRGB(255, 50, 50),
+    AccentColor = Color3.fromRGB(255, 0, 0),
     HatTransparency = 0.34,
     SpinSpeed = 50,
-    TrailColor = Color3.fromRGB(255, 50, 50),
+    TrailColor = Color3.fromRGB(255, 0, 0),
     GradientSpeed = 1,
 }
 local objects = { hatPart = nil, trail = nil, trailAtt0 = nil, trailAtt1 = nil }
 local time = 0
 
 -- ==========================================
--- 2. ЛОГИКА
+-- 2. ЛОГИКА ВИЗУАЛОВ
 -- ==========================================
 local function createHat()
     local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
@@ -100,8 +111,58 @@ end
 
 local function removeTrail()
     if objects.trail then objects.trail:Destroy() objects.trail = nil end
-    if objects.trailAtt0 then objects.trailAtt0:Destroy() end
-    if objects.trailAtt1 then objects.trailAtt1:Destroy() end
+    if objects.trailAtt0 then objects.trailAtt0:Destroy() objects.trailAtt0 = nil end
+    if objects.trailAtt1 then objects.trailAtt1:Destroy() objects.trailAtt1 = nil end
+end
+
+-- ==========================================
+-- FULLBRIGHT ЛОГИКА
+-- ==========================================
+local originalLighting = {
+    Ambient = Lighting.Ambient,
+    OutdoorAmbient = Lighting.OutdoorAmbient,
+    Brightness = Lighting.Brightness,
+    ClockTime = Lighting.ClockTime,
+    FogEnd = Lighting.FogEnd,
+    FogStart = Lighting.FogStart,
+    GlobalShadows = Lighting.GlobalShadows,
+}
+local disabledEffects = {}
+
+local function setFullbright(state)
+    settings.Fullbright = state
+    if state then
+        Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+        Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+        Lighting.Brightness = 3
+        Lighting.ClockTime = 14
+        Lighting.FogEnd = 100000
+        Lighting.FogStart = 100000
+        Lighting.GlobalShadows = false
+
+        for _, effect in ipairs(Lighting:GetChildren()) do
+            if effect:IsA("Atmosphere") or effect:IsA("ColorCorrectionEffect")
+               or effect:IsA("SunRaysEffect") or effect:IsA("BloomEffect") then
+                if effect.Enabled then
+                    table.insert(disabledEffects, effect)
+                    effect.Enabled = false
+                end
+            end
+        end
+    else
+        Lighting.Ambient = originalLighting.Ambient
+        Lighting.OutdoorAmbient = originalLighting.OutdoorAmbient
+        Lighting.Brightness = originalLighting.Brightness
+        Lighting.ClockTime = originalLighting.ClockTime
+        Lighting.FogEnd = originalLighting.FogEnd
+        Lighting.FogStart = originalLighting.FogStart
+        Lighting.GlobalShadows = originalLighting.GlobalShadows
+
+        for _, effect in ipairs(disabledEffects) do
+            if effect and effect.Parent then effect.Enabled = true end
+        end
+        disabledEffects = {}
+    end
 end
 
 LocalPlayer.CharacterAdded:Connect(function()
@@ -110,17 +171,23 @@ LocalPlayer.CharacterAdded:Connect(function()
     if settings.Trail then initTrail() end
 end)
 
+-- ==========================================
+-- 3. ЦИКЛ ОБНОВЛЕНИЯ
+-- ==========================================
 addConnection(RunService.RenderStepped:Connect(function(dt)
     if not isActive then return end
     time = time + dt * settings.GradientSpeed
+    
     if objects.hatPart and objects.hatPart.Parent then
         local alpha = (math.sin(time) + 1) / 2
         objects.hatPart.Color = settings.HatColor1:Lerp(settings.HatColor2, alpha)
         objects.hatPart.Transparency = settings.HatTransparency
     end
+    
     if settings.Trail and objects.trail then
         objects.trail.Color = ColorSequence.new(settings.TrailColor, settings.TrailColor)
     end
+
     if settings.Spin then
         local char = LocalPlayer.Character
         if char then
@@ -133,7 +200,7 @@ addConnection(RunService.RenderStepped:Connect(function(dt)
 end))
 
 -- ==========================================
--- 3. КРАСИВЫЙ GUI
+-- 4. БАЗОВЫЙ GUI
 -- ==========================================
 local oldGui = PlayerGui:FindFirstChild("KotakbasMonsterGui")
 if oldGui then oldGui:Destroy() end
@@ -144,12 +211,6 @@ gui.ResetOnSpawn = false
 gui.DisplayOrder = 999999
 gui.Parent = PlayerGui
 
--- Размытие фона (создаем при открытии)
-local blur = Instance.new("BlurEffect")
-blur.Size = 0
-blur.Parent = Lighting
-
--- Кнопка-Котик
 local catBtn = Instance.new("ImageButton")
 catBtn.Size = UDim2.new(0, 64, 0, 64)
 catBtn.Position = UDim2.new(0.5, -32, 0.4, -32) 
@@ -166,18 +227,16 @@ catStroke.Color = settings.AccentColor
 catStroke.Thickness = 2
 catStroke.Parent = catBtn
 
--- Главное Окно (Glassmorphism)
 local mainFrame = Instance.new("Frame")
 mainFrame.Size = UDim2.new(0, 550, 0, 420)
 mainFrame.Position = UDim2.new(0.5, -275, 0.5, -210)
-mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-mainFrame.BackgroundTransparency = 0.15 -- Полупрозрачный
+mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 mainFrame.BorderSizePixel = 0
 mainFrame.Visible = false
 mainFrame.Parent = gui
 
 local mainCorner = Instance.new("UICorner")
-mainCorner.CornerRadius = UDim.new(0, 16)
+mainCorner.CornerRadius = UDim.new(0, 12)
 mainCorner.Parent = mainFrame
 
 local mainStroke = Instance.new("UIStroke")
@@ -185,67 +244,46 @@ mainStroke.Color = settings.AccentColor
 mainStroke.Thickness = 2
 mainStroke.Parent = mainFrame
 
--- Заголовок
 local titleBar = Instance.new("Frame")
 titleBar.Size = UDim2.new(1, 0, 0, 45)
-titleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-titleBar.BackgroundTransparency = 0.2
+titleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 titleBar.BorderSizePixel = 0
 titleBar.Parent = mainFrame
 
 local titleCorner = Instance.new("UICorner")
-titleCorner.CornerRadius = UDim.new(0, 16)
+titleCorner.CornerRadius = UDim.new(0, 12)
 titleCorner.Parent = titleBar
-
--- "Заплатка" для ровного низа заголовка
-local titleFix = Instance.new("Frame")
-titleFix.Size = UDim2.new(1, 0, 0, 20)
-titleFix.Position = UDim2.new(0, 0, 1, -20)
-titleFix.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-titleFix.BackgroundTransparency = 0.2
-titleFix.BorderSizePixel = 0
-titleFix.Parent = titleBar
 
 local titleText = Instance.new("TextLabel")
 titleText.Size = UDim2.new(1, -20, 1, 0)
-titleText.Position = UDim2.new(0, 20, 0, 0)
+titleText.Position = UDim2.new(0, 15, 0, 0)
 titleText.BackgroundTransparency = 1
-titleText.Text = "KOTAKBAS VISUAL'S"
+titleText.Text = "KOTAKBAS VISUAL'S (RISE STYLE)"
 titleText.TextColor3 = settings.AccentColor
-titleText.Font = Enum.Font.GothamBlack
-titleText.TextSize = 18
+titleText.Font = Enum.Font.GothamBold
+titleText.TextSize = 16
 titleText.TextXAlignment = Enum.TextXAlignment.Left
 titleText.Parent = titleBar
 
 local closeBtn = Instance.new("TextButton")
 closeBtn.Size = UDim2.new(0, 30, 0, 30)
 closeBtn.Position = UDim2.new(1, -40, 0, 7)
-closeBtn.BackgroundColor3 = Color3.fromRGB(60, 20, 20)
+closeBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 closeBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
 closeBtn.Text = "X"
 closeBtn.Font = Enum.Font.GothamBold
 closeBtn.Parent = titleBar
 
 local closeCorner = Instance.new("UICorner")
-closeCorner.CornerRadius = UDim.new(0, 8)
+closeCorner.CornerRadius = UDim.new(0, 6)
 closeCorner.Parent = closeBtn
 
--- Боковая панель
 local sidebar = Instance.new("Frame")
 sidebar.Size = UDim2.new(0, 120, 1, -45)
 sidebar.Position = UDim2.new(0, 0, 0, 45)
-sidebar.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-sidebar.BackgroundTransparency = 0.3
+sidebar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 sidebar.BorderSizePixel = 0
 sidebar.Parent = mainFrame
-
-local sidebarFix = Instance.new("Frame")
-sidebarFix.Size = UDim2.new(0, 10, 0, 20)
-sidebarFix.Position = UDim2.new(1, -10, 0, 0)
-sidebarFix.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-sidebarFix.BackgroundTransparency = 0.3
-sidebarFix.BorderSizePixel = 0
-sidebarFix.Parent = sidebar
 
 local tabList = Instance.new("Frame")
 tabList.Size = UDim2.new(1, -10, 1, -10)
@@ -257,13 +295,14 @@ local tabLayout = Instance.new("UIListLayout")
 tabLayout.Padding = UDim.new(0, 5)
 tabLayout.Parent = tabList
 
-local function createTabButton(name, iconId, order)
+local function createTabButton(name, order)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 40)
-    btn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-    btn.BackgroundTransparency = 0.5
+    btn.Size = UDim2.new(1, 0, 0, 35)
+    btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     btn.TextColor3 = Color3.fromRGB(200, 200, 200)
-    btn.Text = ""
+    btn.Text = name
+    btn.Font = Enum.Font.GothamMedium
+    btn.TextSize = 14
     btn.LayoutOrder = order
     btn.Parent = tabList
     local corner = Instance.new("UICorner")
@@ -274,37 +313,15 @@ local function createTabButton(name, iconId, order)
     stroke.Thickness = 0
     stroke.Transparency = 1
     stroke.Parent = btn
-
-    local icon = Instance.new("ImageLabel")
-    icon.Size = UDim2.new(0, 20, 0, 20)
-    icon.Position = UDim2.new(0, 10, 0.5, -10)
-    icon.BackgroundTransparency = 1
-    icon.Image = iconId
-    icon.ImageColor3 = Color3.fromRGB(200, 200, 200)
-    icon.Parent = btn
-
-    local text = Instance.new("TextLabel")
-    text.Size = UDim2.new(1, -40, 1, 0)
-    text.Position = UDim2.new(0, 35, 0, 0)
-    text.BackgroundTransparency = 1
-    text.Text = name
-    text.TextColor3 = Color3.fromRGB(200, 200, 200)
-    text.Font = Enum.Font.GothamMedium
-    text.TextSize = 14
-    text.TextXAlignment = Enum.TextXAlignment.Left
-    text.Parent = btn
-
-    return btn, stroke, icon, text
+    return btn, stroke
 end
 
--- Иконки в стиле Rise
-local btnVisuals, strokeVisuals, iconVisuals, textVisuals = createTabButton("Визуалы", "rbxassetid://6031094667", 1)
-local btnMovement, strokeMovement, iconMovement, textMovement = createTabButton("Движение", "rbxassetid://6031090990", 2)
-local btnStats, strokeStats, iconStats, textStats = createTabButton("Статистика", "rbxassetid://6031075938", 3)
-local btnNicks, strokeNicks, iconNicks, textNicks = createTabButton("Ники", "rbxassetid://6031280882", 4)
-local btnSettings, strokeSettings, iconSettings, textSettings = createTabButton("Настройки", "rbxassetid://6031280882", 5)
+local btnVisuals, strokeVisuals = createTabButton("Визуалы", 1)
+local btnMovement, strokeMovement = createTabButton("Движение", 2)
+local btnStats, strokeStats = createTabButton("Статистика", 3)
+local btnNicks, strokeNicks = createTabButton("Ники", 4)
+local btnSettings, strokeSettings = createTabButton("Настройки", 5)
 
--- Контент
 local contentArea = Instance.new("Frame")
 contentArea.Size = UDim2.new(1, -140, 1, -60)
 contentArea.Position = UDim2.new(0, 130, 0, 55)
@@ -330,7 +347,7 @@ local nicksPage = createPage()
 local settingsPage = createPage()
 
 -- ==========================================
--- 4. ЭЛЕМЕНТЫ (С ГРАДИЕНТОМ)
+-- 5. КАСТОМНЫЕ ЭЛЕМЕНТЫ
 -- ==========================================
 local function createToggle(parent, name, default, callback)
     local container = Instance.new("Frame")
@@ -466,7 +483,7 @@ local function createColorPicker(parent, name, defaultColor, callback)
 end
 
 -- ==========================================
--- 5. СБОРКА ВКЛАДОК
+-- 6. СБОРКА ВКЛАДОК
 -- ==========================================
 createToggle(visualsPage, "Шапка китайца", settings.Hat, function(state)
     settings.Hat = state
@@ -483,7 +500,7 @@ createSlider(movementPage, "Скорость вращения", 1, 300, 50, "", 
 local statsLabel = Instance.new("TextLabel")
 statsLabel.Size = UDim2.new(1, 0, 0, 60)
 statsLabel.BackgroundTransparency = 1
-statsLabel.Text = "Всего запусков: 1\nТвои запуски: 1"
+statsLabel.Text = "Всего запусков: " .. executionCount .. "\nТвои запуски: " .. executionCount
 statsLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 statsLabel.Font = Enum.Font.GothamMedium
 statsLabel.TextSize = 16
@@ -500,11 +517,15 @@ nicksLabel.TextSize = 14
 nicksLabel.TextXAlignment = Enum.TextXAlignment.Left
 nicksLabel.Parent = nicksPage
 
+-- Fullbright (в настройках, первым)
+createToggle(settingsPage, "Fullbright (Светло)", settings.Fullbright, function(state)
+    setFullbright(state)
+end)
+
 createColorPicker(settingsPage, "Цвет акцента", settings.AccentColor, function(color) 
-    settings.AccentColor = color
+    settings.AccentColor = color 
     mainStroke.Color = color
     catStroke.Color = color
-    tabStroke.Color = color
 end)
 createColorPicker(settingsPage, "Цвет 1 (Шапка)", settings.HatColor1, function(color) settings.HatColor1 = color end)
 createColorPicker(settingsPage, "Цвет 2 (Шапка)", settings.HatColor2, function(color) settings.HatColor2 = color end)
@@ -527,12 +548,13 @@ stopBtn.MouseButton1Click:Connect(function()
     for _, conn in ipairs(connections) do if conn then conn:Disconnect() end end
     removeHat()
     removeTrail()
+    setFullbright(false)
     gui:Destroy()
     print("[KOTAKBAS]: Скрипт выгружен.")
 end)
 
 -- ==========================================
--- 6. ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК
+-- 7. ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК
 -- ==========================================
 local function setTab(tabName)
     visualsPage.Visible = tabName == "Visuals"
@@ -546,13 +568,6 @@ local function setTab(tabName)
     TweenService:Create(strokeStats, TweenInfo.new(0.2), {Thickness = tabName == "Stats" and 2 or 0, Transparency = tabName == "Stats" and 0 or 1}):Play()
     TweenService:Create(strokeNicks, TweenInfo.new(0.2), {Thickness = tabName == "Nicks" and 2 or 0, Transparency = tabName == "Nicks" and 0 or 1}):Play()
     TweenService:Create(strokeSettings, TweenInfo.new(0.2), {Thickness = tabName == "Settings" and 2 or 0, Transparency = tabName == "Settings" and 0 or 1}):Play()
-
-    -- Подсветка активной иконки
-    iconVisuals.ImageColor3 = tabName == "Visuals" and settings.AccentColor or Color3.fromRGB(200,200,200)
-    iconMovement.ImageColor3 = tabName == "Movement" and settings.AccentColor or Color3.fromRGB(200,200,200)
-    iconStats.ImageColor3 = tabName == "Stats" and settings.AccentColor or Color3.fromRGB(200,200,200)
-    iconNicks.ImageColor3 = tabName == "Nicks" and settings.AccentColor or Color3.fromRGB(200,200,200)
-    iconSettings.ImageColor3 = tabName == "Settings" and settings.AccentColor or Color3.fromRGB(200,200,200)
 end
 
 btnVisuals.MouseButton1Click:Connect(function() setTab("Visuals") end)
@@ -563,13 +578,12 @@ btnSettings.MouseButton1Click:Connect(function() setTab("Settings") end)
 setTab("Visuals")
 
 -- ==========================================
--- 7. АНИМАЦИЯ ОКНА И РАЗМЫТИЕ
+-- 8. АНИМАЦИЯ ОКНА
 -- ==========================================
 local isOpen = false
 local openPos = UDim2.new(0.5, -275, 0.5, -210)
 local closePos = UDim2.new(0.5, -275, 1.5, -210)
 local tweenInfo = TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-local blurTween = TweenInfo.new(1, Enum.EasingStyle.Linear)
 
 local function toggleMenu()
     isOpen = not isOpen
@@ -577,11 +591,9 @@ local function toggleMenu()
         mainFrame.Visible = true
         mainFrame.Position = closePos
         TweenService:Create(mainFrame, tweenInfo, {Position = openPos}):Play()
-        TweenService:Create(blur, blurTween, {Size = 15}):Play() -- Размытие
     else
         local tween = TweenService:Create(mainFrame, tweenInfo, {Position = closePos})
         tween:Play()
-        TweenService:Create(blur, blurTween, {Size = 0}):Play()
         tween.Completed:Connect(function()
             if not isOpen then mainFrame.Visible = false end
         end)
@@ -592,7 +604,7 @@ catBtn.MouseButton1Click:Connect(toggleMenu)
 closeBtn.MouseButton1Click:Connect(toggleMenu)
 
 -- ==========================================
--- 8. КАСТОМНЫЙ TAB (С КОРОНОЙ, БЕЗ РАЗМЫТИЯ)
+-- 9. КАСТОМНЫЙ TAB (С КОРОНОЙ И СИНИМИ)
 -- ==========================================
 pcall(function() StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false) end)
 
@@ -605,8 +617,8 @@ tabGui.Parent = PlayerGui
 local tabFrame = Instance.new("Frame")
 tabFrame.Size = UDim2.new(0, 300, 0.8, 0)
 tabFrame.Position = UDim2.new(1, 0, 0.1, 0) 
-tabFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-tabFrame.BackgroundTransparency = 0.15
+tabFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+tabFrame.BackgroundTransparency = 0.1
 tabFrame.BorderSizePixel = 0
 tabFrame.Parent = tabGui
 
@@ -656,176 +668,68 @@ local function updateCustomTab()
         local entry = Instance.new("Frame")
         entry.Size = UDim2.new(1, -10, 0, 35)
         entry.Position = UDim2.new(0, 5, 0, yOffset)
-        entry.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-        entry.BackgroundTransparency = 0.5
+        entry.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        entry.BackgroundTransparency = 0.3
         entry.BorderSizePixel = 0
         entry.Parent = playerList
 
-        local entryCorner
-                local entryCorner = Instance.new("UICorner")
+        local entryCorner = Instance.new("UICorner")
         entryCorner.CornerRadius = UDim.new(0, 6)
         entryCorner.Parent = entry
 
-        -- Аватарка
-        local avatar = Instance.new("ImageLabel")
-        avatar.Size = UDim2.new(0, 25, 0, 25)
-        avatar.Position = UDim2.new(0, 5, 0.5, -12)
-        avatar.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-        avatar.Image = "rbxthumb://type=AvatarHeadShot&id=" .. player.UserId .. "&w=48&h=48"
-        avatar.Parent = entry
-        local avCorner = Instance.new("UICorner")
-        avCorner.CornerRadius = UDim.new(1, 0)
-        avCorner.Parent = avatar
-
-        -- Имя игрока
         local nameLabel = Instance.new("TextLabel")
-        nameLabel.Size = UDim2.new(1, -80, 1, 0)
-        nameLabel.Position = UDim2.new(0, 38, 0, 0)
+        nameLabel.Size = UDim2.new(1, -10, 1, 0)
+        nameLabel.Position = UDim2.new(0, 5, 0, 0)
         nameLabel.BackgroundTransparency = 1
-        nameLabel.Text = player.Name
-        nameLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+        
+        local isCreator = (player.Name == "sasha666555s" or player.DisplayName == "XXNOXERXX")
+        local hasScript = (player == LocalPlayer)
+        
+        if isCreator then
+            nameLabel.Text = "👑 " .. player.Name .. " (" .. player.DisplayName .. ") 👑"
+            nameLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
+            entry.BackgroundColor3 = Color3.fromRGB(50, 40, 0)
+        elseif hasScript then
+            nameLabel.Text = player.Name
+            nameLabel.TextColor3 = Color3.fromRGB(0, 150, 255)
+        else
+            nameLabel.Text = player.Name
+            nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        end
+        
         nameLabel.Font = Enum.Font.GothamMedium
         nameLabel.TextSize = 14
         nameLabel.TextXAlignment = Enum.TextXAlignment.Left
         nameLabel.Parent = entry
-
-        -- Корона для себя
-        if player == LocalPlayer then
-            nameLabel.Text = player.Name .. " 👑"
-            nameLabel.TextColor3 = settings.AccentColor
-        end
-
-        -- Отметка "с скриптом" (синий цвет)
-        local dot = Instance.new("Frame")
-        dot.Size = UDim2.new(0, 10, 0, 10)
-        dot.Position = UDim2.new(1, -20, 0.5, -5)
-        dot.BackgroundColor3 = Color3.fromRGB(80, 150, 255)
-        dot.BorderSizePixel = 0
-        dot.Parent = entry
-        local dotCorner = Instance.new("UICorner")
-        dotCorner.CornerRadius = UDim.new(1, 0)
-        dotCorner.Parent = dot
 
         yOffset = yOffset + 40
     end
     playerList.CanvasSize = UDim2.new(0, 0, 0, yOffset)
 end
 
--- Обновление списка
-updateCustomTab()
-addConnection(Players.PlayerAdded:Connect(updateCustomTab))
-addConnection(Players.PlayerRemoving:Connect(updateCustomTab))
-
--- ==========================================
--- 9. ОТКРЫТИЕ/ЗАКРЫТИЕ КАСТОМНОГО TAB ПО КЛАВИШЕ
--- ==========================================
-tabFrame.Visible = false
+local isTabOpen = false
+local openPosTab = UDim2.new(1, -310, 0.1, 0)
+local closePosTab = UDim2.new(1, 0, 0.1, 0)
+local openTweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local closeTweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 
 addConnection(UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.KeyCode == Enum.KeyCode.Tab then
-        tabFrame.Visible = not tabFrame.Visible
-        if tabFrame.Visible then
-            updateCustomTab()
-        end
+    if input.KeyCode == Enum.KeyCode.Tab and not isTabOpen then
+        isTabOpen = true
+        updateCustomTab()
+        TweenService:Create(tabFrame, openTweenInfo, { Position = openPosTab }):Play()
     end
 end))
 
--- ==========================================
--- 10. ПЕРЕТАСКИВАНИЕ ГЛАВНОГО ОКНА
--- ==========================================
-local dragging = false
-local dragStart, startPos
-
-titleBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = mainFrame.Position
+addConnection(UserInputService.InputEnded:Connect(function(input, gameProcessed)
+    if input.KeyCode == Enum.KeyCode.Tab and isTabOpen then
+        isTabOpen = false
+        TweenService:Create(tabFrame, closeTweenInfo, { Position = closePosTab }):Play()
     end
+end))
+
+task.spawn(function()
+    while task.wait(2) do if isTabOpen then updateCustomTab() end end
 end)
 
-addConnection(UserInputService.InputChanged:Connect(function(input)
-    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - dragStart
-        mainFrame.Position = UDim2.new(
-            startPos.X.Scale, startPos.X.Offset + delta.X,
-            startPos.Y.Scale, startPos.Y.Offset + delta.Y
-        )
-    end
-end))
-
-addConnection(UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = false
-    end
-end))
-
--- ==========================================
--- 11. ПЕРЕТАСКИВАНИЕ КНОПКИ-КОТИКА
--- ==========================================
-local catDragging = false
-local catDragStart, catStartPos
-local catMoved = false
-
-catBtn.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        catDragging = true
-        catMoved = false
-        catDragStart = input.Position
-        catStartPos = catBtn.Position
-    end
-end)
-
-addConnection(UserInputService.InputChanged:Connect(function(input)
-    if catDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - catDragStart
-        if math.abs(delta.X) > 3 or math.abs(delta.Y) > 3 then
-            catMoved = true
-        end
-        if catMoved then
-            catBtn.Position = UDim2.new(
-                catStartPos.X.Scale, catStartPos.X.Offset + delta.X,
-                catStartPos.Y.Scale, catStartPos.Y.Offset + delta.Y
-            )
-        end
-    end
-end))
-
-addConnection(UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        catDragging = false
-    end
-end))
-
--- ==========================================
--- 12. УВЕДОМЛЕНИЕ О ЗАГРУЗКЕ
--- ==========================================
-local notify = Instance.new("TextLabel")
-notify.Size = UDim2.new(0, 300, 0, 40)
-notify.Position = UDim2.new(0.5, -150, 0, -50)
-notify.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-notify.BackgroundTransparency = 0.1
-notify.Text = "✅ KOTAKBAS VISUAL'S загружен!"
-notify.TextColor3 = settings.AccentColor
-notify.Font = Enum.Font.GothamBold
-notify.TextSize = 16
-notify.Parent = gui
-local notifyCorner = Instance.new("UICorner")
-notifyCorner.CornerRadius = UDim.new(0, 10)
-notifyCorner.Parent = notify
-local notifyStroke = Instance.new("UIStroke")
-notifyStroke.Color = settings.AccentColor
-notifyStroke.Thickness = 2
-notifyStroke.Parent = notify
-
-TweenService:Create(notify, TweenInfo.new(0.4, Enum.EasingStyle.Back), {Position = UDim2.new(0.5, -150, 0, 20)}):Play()
-task.delay(3, function()
-    if notify and notify.Parent then
-        TweenService:Create(notify, TweenInfo.new(0.4), {Position = UDim2.new(0.5, -150, 0, -50)}):Play()
-        task.wait(0.5)
-        notify:Destroy()
-    end
-end)
-
-print("[KOTAKBAS]: BEAUTIFUL UI V2 успешно загружен! 🐱")
+print("[KOTAKBAS]: MONSTER UI + TAB + FULLBRIGHT загружен! Запусков: " .. executionCount)
