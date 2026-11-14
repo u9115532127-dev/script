@@ -207,8 +207,8 @@ if oldGui then oldGui:Destroy() end
 
 local catBtn = Instance.new("ImageButton")
 catBtn.Size = UDim2.new(0, 64, 0, 64)
--- ВОТ ЗДЕСЬ: 0.5 (центр), -32 (ровно по центру), 0.5 (середина экрана), -150 (высота)
-catBtn.Position = UDim2.new(0.5, -32, 0.5, -150) 
+-- 0.5 по X, 0 по X-Offset (ровно центр), 0.5 по Y, -200 поднимает вверх
+catBtn.Position = UDim2.new(0.5, 0, 0.5, -200) 
 catBtn.BackgroundTransparency = 1
 catBtn.Image = "rbxassetid://88490182864491" 
 catBtn.Parent = gui
