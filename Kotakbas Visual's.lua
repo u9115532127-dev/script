@@ -205,10 +205,15 @@ end))
 local oldGui = PlayerGui:FindFirstChild("KotakbasMonsterGui")
 if oldGui then oldGui:Destroy() end
 
+local gui = Instance.new("ScreenGui")
+gui.Name = "KotakbasMonsterGui"
+gui.ResetOnSpawn = false
+gui.DisplayOrder = 999999
+gui.Parent = PlayerGui
+
 local catBtn = Instance.new("ImageButton")
 catBtn.Size = UDim2.new(0, 64, 0, 64)
--- 0.5 по X, 0 по X-Offset (ровно центр), 0.5 по Y, -200 поднимает вверх
-catBtn.Position = UDim2.new(0.5, 32, 0.5, -50) 
+catBtn.Position = UDim2.new(0.5, -32, 0.4, -50) 
 catBtn.BackgroundTransparency = 1
 catBtn.Image = "rbxassetid://88490182864491" 
 catBtn.Parent = gui
