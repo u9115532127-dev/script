@@ -213,7 +213,7 @@ gui.Parent = PlayerGui
 
 local catBtn = Instance.new("ImageButton")
 catBtn.Size = UDim2.new(0, 64, 0, 64)
-catBtn.Position = UDim2.new(0.5, -60, 0.4, -200) 
+catBtn.Position = UDim2.new(0.5, -50, 0.4, -200) 
 catBtn.BackgroundTransparency = 1
 catBtn.Image = "rbxassetid://88490182864491" 
 catBtn.Parent = gui
